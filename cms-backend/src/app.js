@@ -12,7 +12,7 @@ app.get("/", (req, res) => {
     res.send("CMS API RUNNING");
 });
 
-app.use("/api/auth", require("./routes/auth.routes"));
-app.use("/api/artifacts", require("./routes/artifact.routes"));
+// app.use("/api/auth", require("./routes/auth.routes"));
+// app.use("/api/artifacts", require("./routes/artifact.routes"));
 
 module.exports = app;
