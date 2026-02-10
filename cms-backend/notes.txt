@@ -2846,7 +2846,377 @@ curl -H "Authorization: Bearer invalid_token_here" \
 
 
 ================================================================================
-13. HOW TO RUN THE PROJECT
+13. AUTH.ROUTES.JS FILE - AUTHENTICATION ROUTES EXPLANATION
+================================================================================
+
+COMPLETE FILE:
+-------------
+
+const router = require("express").Router();
+const auth = require("../controllers/auth.controller");
+
+router.post("/send-otp", auth.sendOTP);
+router.post("/verify-otp", auth.verifyOTP);
+router.post("/signup", auth.signup);
+router.post("/login", auth.login);
+
+module.exports = router;
+
+
+LINE-BY-LINE EXPLANATION:
+-------------------------
+
+LINE 1: const router = require("express").Router();
+--------
+- Imports Express Router
+- Router is used to define routes
+- Allows modular route definitions
+- This router will be mounted at /api/auth in app.js
+
+
+LINE 2: const auth = require("../controllers/auth.controller");
+--------
+- Imports authentication controller
+- Contains all authentication logic (sendOTP, verifyOTP, signup, login)
+- Controller functions handle the actual business logic
+
+
+LINE 4: router.post("/send-otp", auth.sendOTP);
+--------
+- Defines POST route for sending OTP
+- Full path: POST /api/auth/send-otp
+- Calls auth.sendOTP controller function
+- Public route (no authentication required)
+- Client sends: { "email": "user@example.com" }
+- Response: { "message": "OTP sent successfully" }
+
+
+LINE 5: router.post("/verify-otp", auth.verifyOTP);
+--------
+- Defines POST route for verifying OTP
+- Full path: POST /api/auth/verify-otp
+- Calls auth.verifyOTP controller function
+- Public route (no authentication required)
+- Client sends: { "email": "user@example.com", "otp": "123456" }
+- Response: { "message": "OTP verified successfully" }
+
+
+LINE 6: router.post("/signup", auth.signup);
+--------
+- Defines POST route for user registration
+- Full path: POST /api/auth/signup
+- Calls auth.signup controller function
+- Public route (no authentication required)
+- Client sends: { "email": "user@example.com", "password": "password123" }
+- Response: { "message": "User created successfully" }
+
+
+LINE 7: router.post("/login", auth.login);
+--------
+- Defines POST route for user login
+- Full path: POST /api/auth/login
+- Calls auth.login controller function
+- Public route (no authentication required)
+- Client sends: { "email": "user@example.com", "password": "password123" }
+- Response: { "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }
+
+
+LINE 9: module.exports = router;
+--------
+- Exports the router
+- Imported in app.js
+- Mounted at /api/auth
+- Makes all routes accessible under /api/auth prefix
+
+
+ROUTE SUMMARY:
+-------------
+
+All routes are PUBLIC (no authentication required):
+
+POST /api/auth/send-otp     - Send OTP to email
+POST /api/auth/verify-otp   - Verify OTP code
+POST /api/auth/signup       - Create new user account
+POST /api/auth/login        - Login and get JWT token
+
+
+HOW ROUTES ARE MOUNTED:
+-----------------------
+
+In app.js:
+app.use("/api/auth", require("./routes/auth.routes"));
+
+This means:
+- All routes in auth.routes.js are prefixed with /api/auth
+- router.post("/send-otp") becomes POST /api/auth/send-otp
+- router.post("/login") becomes POST /api/auth/login
+
+
+COMPLETE AUTHENTICATION FLOW:
+-----------------------------
+
+1. SEND OTP
+   POST /api/auth/send-otp
+   Body: { "email": "user@example.com" }
+   → Generates and emails OTP
+
+2. VERIFY OTP
+   POST /api/auth/verify-otp
+   Body: { "email": "user@example.com", "otp": "123456" }
+   → Validates OTP
+
+3. SIGNUP
+   POST /api/auth/signup
+   Body: { "email": "user@example.com", "password": "password123" }
+   → Creates user account
+
+4. LOGIN
+   POST /api/auth/login
+   Body: { "email": "user@example.com", "password": "password123" }
+   → Returns JWT token
+
+
+TESTING IN POSTMAN:
+------------------
+
+1. Send OTP:
+   POST http://localhost:5000/api/auth/send-otp
+   Headers: { "Content-Type": "application/json" }
+   Body: { "email": "your-email@gmail.com" }
+
+2. Verify OTP:
+   POST http://localhost:5000/api/auth/verify-otp
+   Headers: { "Content-Type": "application/json" }
+   Body: { "email": "your-email@gmail.com", "otp": "123456" }
+
+3. Signup:
+   POST http://localhost:5000/api/auth/signup
+   Headers: { "Content-Type": "application/json" }
+   Body: { "email": "your-email@gmail.com", "password": "yourPassword123" }
+
+4. Login:
+   POST http://localhost:5000/api/auth/login
+   Headers: { "Content-Type": "application/json" }
+   Body: { "email": "your-email@gmail.com", "password": "yourPassword123" }
+
+
+ROUTE PATTERN:
+-------------
+
+All routes follow REST conventions:
+- POST for creating/sending data
+- All routes are under /api/auth namespace
+- Clear, descriptive endpoint names
+- Consistent response format
+
+
+IMPROVEMENTS TO CONSIDER:
+------------------------
+
+1. Add rate limiting:
+   const rateLimit = require("express-rate-limit");
+   const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5 });
+   router.post("/send-otp", limiter, auth.sendOTP);
+
+2. Add input validation middleware:
+   const { validateEmail } = require("../middlewares/validation");
+   router.post("/send-otp", validateEmail, auth.sendOTP);
+
+3. Add GET route for checking auth status:
+   router.get("/me", authMiddleware, auth.getProfile);
+
+4. Add logout route (for token blacklisting):
+   router.post("/logout", authMiddleware, auth.logout);
+
+5. Add password reset routes:
+   router.post("/forgot-password", auth.forgotPassword);
+   router.post("/reset-password", auth.resetPassword);
+
+
+================================================================================
+14. ARTIFACT.ROUTES.JS FILE - ARTIFACT ROUTES EXPLANATION
+================================================================================
+
+COMPLETE FILE:
+-------------
+
+const router = require("express").Router();
+const artifact = require("../controllers/artifact.controller");
+const auth = require("../middlewares/auth.middleware");
+
+router.post("/create", auth, artifact.createArtifact);
+router.get("/", auth, artifact.getArtifacts);
+
+module.exports = router;
+
+
+LINE-BY-LINE EXPLANATION:
+-------------------------
+
+LINE 1: const router = require("express").Router();
+--------
+- Imports Express Router
+- Creates new router instance
+- This router will be mounted at /api/artifacts in app.js
+
+
+LINE 2: const artifact = require("../controllers/artifact.controller");
+--------
+- Imports artifact controller
+- Contains artifact business logic (createArtifact, getArtifacts)
+- Controller functions handle CRUD operations
+
+
+LINE 3: const auth = require("../middlewares/auth.middleware");
+--------
+- Imports authentication middleware
+- Used to protect routes (requires JWT token)
+- Verifies token and attaches user to req.user
+
+
+LINE 5: router.post("/create", auth, artifact.createArtifact);
+--------
+- Defines POST route for creating artifacts
+- Full path: POST /api/artifacts/create
+- PROTECTED route (requires authentication)
+- auth middleware runs first, then controller
+- Client must send JWT token in Authorization header
+- Client sends: { "title": "...", "description": "..." }
+- Response: Created artifact with createdBy field
+
+
+LINE 6: router.get("/", auth, artifact.getArtifacts);
+--------
+- Defines GET route for fetching all artifacts
+- Full path: GET /api/artifacts
+- PROTECTED route (requires authentication)
+- auth middleware runs first, then controller
+- Client must send JWT token in Authorization header
+- Response: Array of artifacts with populated creator info
+
+
+LINE 8: module.exports = router;
+--------
+- Exports the router
+- Imported in app.js
+- Mounted at /api/artifacts
+
+
+ROUTE SUMMARY:
+-------------
+
+All routes are PROTECTED (authentication required):
+
+POST /api/artifacts/create  - Create new artifact (auth required)
+GET  /api/artifacts         - Get all artifacts (auth required)
+
+
+MIDDLEWARE EXECUTION ORDER:
+--------------------------
+
+For POST /api/artifacts/create:
+1. Request received
+2. auth middleware executes
+   - Verifies JWT token
+   - Attaches user to req.user
+   - Calls next()
+3. artifact.createArtifact controller executes
+   - Uses req.user.id for createdBy field
+   - Creates artifact in database
+4. Response sent
+
+
+TESTING IN POSTMAN:
+------------------
+
+First, login to get token:
+POST http://localhost:5000/api/auth/login
+Body: { "email": "user@example.com", "password": "password123" }
+Response: { "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }
+
+Then use token for artifact routes:
+
+1. Create Artifact:
+   POST http://localhost:5000/api/artifacts/create
+   Headers: {
+       "Content-Type": "application/json",
+       "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+   }
+   Body: {
+       "title": "My First Post",
+       "description": "This is the content of my post..."
+   }
+
+2. Get All Artifacts:
+   GET http://localhost:5000/api/artifacts
+   Headers: {
+       "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+   }
+
+
+AUTHENTICATION FLOW:
+-------------------
+
+Client → Request with token → auth middleware → Verify token → Controller → Response
+
+If token invalid:
+Client → Request with invalid token → auth middleware → Return 401 error
+
+
+IMPROVEMENTS TO CONSIDER:
+------------------------
+
+1. Add more CRUD routes:
+   router.get("/:id", auth, artifact.getArtifact);
+   router.put("/:id", auth, artifact.updateArtifact);
+   router.delete("/:id", auth, artifact.deleteArtifact);
+
+2. Make GET /api/artifacts public (no auth required):
+   router.get("/", artifact.getArtifacts); // Remove auth middleware
+
+3. Add pagination query parameters:
+   router.get("/", auth, artifact.getArtifacts); // ?page=1&limit=10
+
+4. Add search functionality:
+   router.get("/search", auth, artifact.searchArtifacts); // ?q=keyword
+
+5. Add user-specific artifacts:
+   router.get("/my-artifacts", auth, artifact.getMyArtifacts);
+
+6. Simplify create route:
+   router.post("/", auth, artifact.createArtifact); // Instead of /create
+
+
+ROUTE NAMING CONVENTIONS:
+------------------------
+
+Current:
+POST /api/artifacts/create  - Creates artifact
+
+Better (RESTful):
+POST /api/artifacts         - Creates artifact
+GET  /api/artifacts         - Gets all artifacts
+GET  /api/artifacts/:id     - Gets single artifact
+PUT  /api/artifacts/:id     - Updates artifact
+DELETE /api/artifacts/:id   - Deletes artifact
+
+
+PROTECTED VS PUBLIC ROUTES:
+---------------------------
+
+PROTECTED (requires auth middleware):
+- POST /api/artifacts/create
+- GET  /api/artifacts
+
+PUBLIC (no auth middleware):
+- POST /api/auth/send-otp
+- POST /api/auth/verify-otp
+- POST /api/auth/signup
+- POST /api/auth/login
+
+
+================================================================================
+15. HOW TO RUN THE PROJECT
 ================================================================================
 
 Step 1: Install dependencies
