@@ -2500,7 +2500,353 @@ Response (200 OK):
 
 
 ================================================================================
-12. HOW TO RUN THE PROJECT
+12. AUTH.MIDDLEWARE.JS FILE - AUTHENTICATION MIDDLEWARE EXPLANATION
+================================================================================
+
+COMPLETE FILE:
+-------------
+
+const jwt = require("jsonwebtoken");
+
+module.exports = (req, res, next) => {
+    const token = req.header("Authorization");
+    if (!token) return res.status(401).json({ message: "Unauthorized" });
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (error) {
+        res.status(401).json({ message: "Invalid token" });
+    }
+};
+
+
+LINE-BY-LINE EXPLANATION:
+-------------------------
+
+LINE 1: const jwt = require("jsonwebtoken");
+--------
+- Imports jsonwebtoken library
+- Used to verify JWT tokens
+- Ensures tokens are valid and not tampered with
+
+
+LINE 3: module.exports = (req, res, next) => {
+--------
+- Exports middleware function
+- Middleware signature: (req, res, next)
+- req: Request object (contains headers, body, params)
+- res: Response object (used to send responses)
+- next: Function to pass control to next middleware/controller
+- This is an anonymous function (no name)
+
+
+LINE 4: const token = req.header("Authorization");
+--------
+- Extracts token from Authorization header
+- Client sends: Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+- ISSUE: This gets the ENTIRE header value including "Bearer "
+- Should use: req.header("Authorization")?.split(" ")[1]
+- Or: req.header("Authorization")?.replace("Bearer ", "")
+
+
+LINE 5: if (!token) return res.status(401).json({ message: "Unauthorized" });
+--------
+- Checks if token exists
+- If no token provided, return 401 Unauthorized
+- Status 401: Authentication required
+- Stops execution (doesn't call next())
+- Client must provide token to access protected routes
+
+
+LINE 6-9: try-catch Block
+--------
+try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+}
+
+LINE 7: const decoded = jwt.verify(token, process.env.JWT_SECRET);
+- Verifies JWT token signature
+- token: JWT token from Authorization header
+- process.env.JWT_SECRET: Secret key from .env file
+- Returns decoded payload if valid
+- Throws error if token is invalid, expired, or tampered with
+- Decoded payload example: { id: "607f1f77bcf86cd799439011", iat: 1675123456, exp: 1675728256 }
+
+LINE 8: req.user = decoded;
+- Attaches decoded token payload to request object
+- Makes user data available in controllers
+- Controllers can access: req.user.id
+- This is how controllers know which user is making the request
+
+LINE 9: next();
+- Passes control to next middleware or controller
+- Only called if token is valid
+- Continues the request-response cycle
+
+
+LINE 10-12: catch Block
+--------
+catch (error) {
+    res.status(401).json({ message: "Invalid token" });
+}
+
+- Catches any errors from jwt.verify()
+- Common errors:
+  * Token expired (exp claim passed)
+  * Invalid signature (token tampered with)
+  * Malformed token (not a valid JWT)
+  * Wrong secret key
+- Returns 401 Unauthorized
+- Doesn't call next() - stops execution
+
+
+HOW MIDDLEWARE WORKS:
+--------------------
+
+Middleware is a function that runs BEFORE the controller.
+
+Request Flow:
+1. Client sends request with token
+2. Middleware extracts and verifies token
+3. If valid: Attaches user to req.user, calls next()
+4. Controller executes with req.user available
+5. Response sent back to client
+
+If token invalid:
+1. Client sends request with invalid token
+2. Middleware tries to verify token
+3. Verification fails (throws error)
+4. catch block sends 401 error
+5. Controller never executes
+
+
+USING MIDDLEWARE IN ROUTES:
+---------------------------
+
+const authMiddleware = require("../middlewares/auth.middleware");
+
+// Protected route - requires authentication
+router.post("/artifacts", authMiddleware, artifactController.createArtifact);
+
+// Public route - no authentication required
+router.get("/artifacts", artifactController.getArtifacts);
+
+Execution order:
+1. Request hits route
+2. authMiddleware runs first
+3. If token valid, controller runs
+4. If token invalid, error returned (controller doesn't run)
+
+
+AUTHORIZATION HEADER FORMAT:
+---------------------------
+
+Correct format:
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Parts:
+- "Bearer" - Authentication scheme
+- Space
+- JWT token
+
+Example:
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjYwN2YxZjc3YmNmODZjZDc5OTQzOTAxMSIsImlhdCI6MTY3NTEyMzQ1NiwiZXhwIjoxNjc1NzI4MjU2fQ.4xK8j3Z9X2Y1W0V5U4T3S2R1Q0P9O8N7M6L5K4J3I2H1
+
+
+JWT.VERIFY() EXPLAINED:
+----------------------
+
+jwt.verify(token, secret)
+
+What it does:
+1. Decodes the token (Base64 decode)
+2. Extracts header and payload
+3. Recreates signature using secret
+4. Compares signatures
+5. Checks expiration (exp claim)
+6. Returns payload if everything valid
+
+Returns:
+{
+    id: "607f1f77bcf86cd799439011",  // From jwt.sign() payload
+    iat: 1675123456,  // Issued at (timestamp)
+    exp: 1675728256   // Expires at (timestamp)
+}
+
+Throws error if:
+- Token expired
+- Invalid signature
+- Malformed token
+- Wrong secret
+
+
+CRITICAL BUG IN CURRENT CODE:
+-----------------------------
+
+LINE 4: const token = req.header("Authorization");
+
+This gets the ENTIRE header value: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+But jwt.verify() expects ONLY the token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+FIX:
+const token = req.header("Authorization")?.split(" ")[1];
+
+Or:
+const token = req.header("Authorization")?.replace("Bearer ", "");
+
+Or:
+const authHeader = req.header("Authorization");
+const token = authHeader && authHeader.startsWith("Bearer ") 
+    ? authHeader.slice(7) 
+    : null;
+
+
+IMPROVED VERSION:
+----------------
+
+const jwt = require("jsonwebtoken");
+
+module.exports = (req, res, next) => {
+    // Extract token from "Bearer <token>" format
+    const authHeader = req.header("Authorization");
+    const token = authHeader?.split(" ")[1]; // Get token after "Bearer "
+    
+    if (!token) {
+        return res.status(401).json({ message: "No token provided" });
+    }
+    
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded; // Attach user to request
+        next(); // Continue to controller
+    } catch (error) {
+        if (error.name === "TokenExpiredError") {
+            return res.status(401).json({ message: "Token expired" });
+        }
+        return res.status(401).json({ message: "Invalid token" });
+    }
+};
+
+
+EXAMPLE USAGE:
+-------------
+
+// routes/artifact.routes.js
+const express = require("express");
+const router = express.Router();
+const authMiddleware = require("../middlewares/auth.middleware");
+const artifactController = require("../controllers/artifact.controller");
+
+// Protected route - requires authentication
+router.post("/", authMiddleware, artifactController.createArtifact);
+
+// Public route - no authentication
+router.get("/", artifactController.getArtifacts);
+
+module.exports = router;
+
+
+REQUEST FLOW WITH MIDDLEWARE:
+-----------------------------
+
+CLIENT REQUEST:
+POST /api/artifacts
+Headers: {
+    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "Content-Type": "application/json"
+}
+Body: {
+    "title": "My Post",
+    "description": "Content..."
+}
+
+STEP 1: Request hits route
+→ POST /api/artifacts matches route
+
+STEP 2: Auth middleware executes
+→ Extracts token from Authorization header
+→ Verifies token with jwt.verify()
+→ Decodes payload: { id: "607f1f77bcf86cd799439011", iat: ..., exp: ... }
+→ Sets req.user = { id: "607f1f77bcf86cd799439011", iat: ..., exp: ... }
+→ Calls next()
+
+STEP 3: Controller executes
+→ createArtifact controller runs
+→ Accesses req.user.id to get authenticated user
+→ Creates artifact with createdBy: req.user.id
+
+STEP 4: Response sent
+→ Returns created artifact to client
+
+
+COMMON ERRORS:
+-------------
+
+1. "No token provided"
+   - Client didn't send Authorization header
+   - Solution: Include Authorization header in request
+
+2. "Invalid token"
+   - Token malformed or tampered with
+   - Wrong secret key
+   - Solution: Use correct token from login response
+
+3. "Token expired"
+   - Token's exp claim has passed
+   - Solution: Login again to get new token
+
+4. "jwt malformed"
+   - Token format is incorrect
+   - Might be including "Bearer " in jwt.verify()
+   - Solution: Extract token correctly (split by space)
+
+
+SECURITY CONSIDERATIONS:
+-----------------------
+
+✓ Verifies token signature (prevents tampering)
+✓ Checks token expiration (prevents old tokens)
+✓ Returns 401 for invalid/missing tokens
+✓ Doesn't expose sensitive error details
+
+✗ Missing: Token format validation (should check "Bearer " prefix)
+✗ Missing: Detailed error messages for debugging (in development)
+✗ Missing: Rate limiting (prevent brute force token guessing)
+
+
+STATUS CODES:
+------------
+
+401 Unauthorized - Authentication required or failed
+- No token provided
+- Invalid token
+- Expired token
+- Malformed token
+
+
+TESTING MIDDLEWARE:
+------------------
+
+Valid token:
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+     http://localhost:5000/api/artifacts
+
+No token:
+curl http://localhost:5000/api/artifacts
+→ Response: { "message": "Unauthorized" }
+
+Invalid token:
+curl -H "Authorization: Bearer invalid_token_here" \
+     http://localhost:5000/api/artifacts
+→ Response: { "message": "Invalid token" }
+
+
+================================================================================
+13. HOW TO RUN THE PROJECT
 ================================================================================
 
 Step 1: Install dependencies
