@@ -1,0 +1,1704 @@
+================================================================================
+                    CMS BACKEND - PROJECT DOCUMENTATION
+================================================================================
+
+================================================================================
+1. FOLDER STRUCTURE EXPLANATION
+================================================================================
+
+cms-backend/
+│
+├── node_modules/              # Contains all installed npm packages/dependencies
+│                              # Auto-generated when you run 'npm install'
+│                              # Should be added to .gitignore
+│
+├── src/                       # Source code directory - contains all application code
+│   │
+│   ├── app.js                 # Main application file - configures Express app,
+│   │                          # sets up middlewares, and defines routes
+│   │
+│   ├── config/                # Configuration files directory
+│   │   └── db.js              # Database connection configuration (MongoDB)
+│   │                          # Handles connection to MongoDB using Mongoose
+│   │
+│   ├── controllers/           # Controller files - handle business logic
+│   │   ├── auth.controller.js     # Authentication logic (register, login, OTP)
+│   │   └── artifact.controller.js # Artifact/content management logic
+│   │
+│   ├── middlewares/           # Middleware functions directory
+│   │   └── auth.middleware.js # Authentication middleware (JWT verification)
+│   │                          # Protects routes that require authentication
+│   │
+│   ├── models/                # Database models/schemas directory
+│   │   ├── user.model.js      # User schema (username, email, password, role)
+│   │   ├── otp.model.js       # OTP schema (for email verification)
+│   │   └── artifact.model.js  # Artifact/content schema
+│   │
+│   └── routes/                # Route definitions directory
+│       ├── auth.routes.js     # Authentication routes (/register, /login, etc.)
+│       └── artifact.routes.js # Artifact/content management routes
+│
+├── .env                       # Environment variables file (PORT, DB_URI, JWT_SECRET)
+│                              # Contains sensitive configuration - NEVER commit to Git
+│
+├── .gitignore                 # Specifies files/folders Git should ignore
+│                              # (node_modules, .env, etc.)
+│
+├── package.json               # Project metadata and dependencies list
+│                              # Contains scripts, project name, version, etc.
+│
+├── package-lock.json          # Locks exact versions of dependencies
+│                              # Auto-generated, ensures consistent installs
+│
+└── server.js                  # Entry point of the application
+                               # Starts the server and connects to database
+
+
+================================================================================
+2. NPM INSTALL COMMAND EXPLANATION
+================================================================================
+
+COMMAND:
+npm install express mongoose cors morgan dotenv bcrypt jsonwebtoken nodemailer otp-generator
+
+This command installs the following packages:
+
+1. express
+   - Purpose: Web application framework for Node.js
+   - Usage: Creates server, handles routing, middleware, HTTP requests/responses
+   - Why needed: Core framework to build the REST API
+
+2. mongoose
+   - Purpose: MongoDB object modeling tool (ODM)
+   - Usage: Connects to MongoDB, defines schemas, performs database operations
+   - Why needed: Simplifies MongoDB interactions with schema validation
+
+3. cors
+   - Purpose: Cross-Origin Resource Sharing middleware
+   - Usage: Allows frontend (different domain/port) to communicate with backend
+   - Why needed: Enables API access from web browsers on different origins
+
+4. morgan
+   - Purpose: HTTP request logger middleware
+   - Usage: Logs all incoming HTTP requests to console
+   - Why needed: Helps debug and monitor API requests during development
+
+5. dotenv
+   - Purpose: Loads environment variables from .env file
+   - Usage: Reads .env file and makes variables available via process.env
+   - Why needed: Keeps sensitive data (passwords, keys) out of source code
+
+6. bcrypt
+   - Purpose: Password hashing library
+   - Usage: Hashes passwords before storing, compares hashed passwords
+   - Why needed: Securely stores user passwords (never store plain text!)
+
+7. jsonwebtoken
+   - Purpose: JSON Web Token implementation
+   - Usage: Creates and verifies JWT tokens for authentication
+   - Why needed: Implements stateless authentication for protected routes
+
+8. nodemailer
+   - Purpose: Email sending library
+   - Usage: Sends emails (OTP, verification, notifications)
+   - Why needed: Sends OTP codes for user verification
+
+9. otp-generator
+   - Purpose: Generates random OTP codes
+   - Usage: Creates numeric/alphanumeric OTP codes
+   - Why needed: Generates secure one-time passwords for email verification
+
+
+================================================================================
+3. SERVER.JS FILE - LINE BY LINE EXPLANATION
+================================================================================
+
+LINE 1: require("dotenv").config();
+--------
+- Imports the 'dotenv' package
+- Calls .config() method to load environment variables from .env file
+- Makes variables like PORT, MONGO_URI, JWT_SECRET available via process.env
+- MUST be at the top of the file before other imports that use env variables
+- Example: After this line, you can access process.env.PORT
+
+
+LINE 2: const app = require("./src/app");
+--------
+- Imports the Express application instance from src/app.js
+- The app.js file contains all Express configuration:
+  * Middleware setup (cors, morgan, express.json)
+  * Route definitions
+  * Error handling
+- Separating app configuration from server startup is a best practice
+- Makes testing easier (can import app without starting server)
+
+
+LINE 3: const connectDB = require("./src/config/db");
+--------
+- Imports the database connection function from src/config/db.js
+- This function handles MongoDB connection using Mongoose
+- Typically contains:
+  * mongoose.connect() with connection string
+  * Connection success/error handlers
+  * Connection options (useNewUrlParser, etc.)
+
+
+LINE 5: connectDB();
+--------
+- Executes the database connection function
+- Establishes connection to MongoDB database
+- Should be called BEFORE starting the server
+- Ensures database is ready before accepting requests
+- Connection is asynchronous but server starts regardless
+
+
+LINE 7-9: app.listen(process.env.PORT, () => { ... });
+--------
+- Starts the Express server
+- process.env.PORT: Gets port number from .env file (e.g., 5000)
+- Callback function executes when server successfully starts
+- console.log: Prints confirmation message to terminal
+- Server now listens for incoming HTTP requests on specified port
+
+FLOW SUMMARY:
+1. Load environment variables (.env)
+2. Import Express app configuration
+3. Import database connection function
+4. Connect to MongoDB database
+5. Start Express server on specified port
+6. Server is now running and ready to handle requests!
+
+
+================================================================================
+4. APP.JS FILE - LINE BY LINE EXPLANATION
+================================================================================
+
+LINE 1-3: Importing Required Packages
+--------
+const express = require("express");
+const cors = require("cors");
+const morgan = require("morgan");
+
+- Line 1: Imports Express framework - used to create the web application
+- Line 2: Imports CORS middleware - handles Cross-Origin Resource Sharing
+- Line 3: Imports Morgan middleware - logs HTTP requests for debugging
+- These are the core dependencies needed for the Express app configuration
+
+
+LINE 5: const app = express();
+--------
+- Creates an Express application instance
+- 'app' object has methods for:
+  * Routing HTTP requests (app.get, app.post, etc.)
+  * Configuring middleware (app.use)
+  * Rendering HTML views
+  * Setting application properties
+- This is the main application object that gets exported and used in server.js
+
+
+LINE 7: app.use(cors());
+--------
+- Enables CORS (Cross-Origin Resource Sharing) for all routes
+- Allows frontend applications (React, Vue, etc.) on different domains to access API
+- Without this, browsers block requests from different origins (security feature)
+- Example: Frontend on http://localhost:3000 can call API on http://localhost:5000
+- In production, you can configure specific allowed origins:
+  app.use(cors({ origin: 'https://yourfrontend.com' }))
+
+
+LINE 8: app.use(morgan("dev"));
+--------
+- Enables HTTP request logging in "dev" format
+- Logs every incoming request to the console with:
+  * HTTP method (GET, POST, PUT, DELETE)
+  * URL path
+  * Status code (200, 404, 500, etc.)
+  * Response time
+- Example output: "GET /api/auth/login 200 45.123 ms"
+- Very helpful for debugging and monitoring API activity
+- Other formats: "combined", "common", "short", "tiny"
+
+
+LINE 9: app.use(express.json({ limit: "10mb" }));
+--------
+- Enables JSON body parsing for incoming requests
+- Parses JSON data from request body and makes it available in req.body
+- { limit: "10mb" }: Sets maximum request body size to 10 megabytes
+  * Prevents server crashes from extremely large payloads
+  * Useful for file uploads or large data submissions
+  * Default is 100kb if not specified
+- Without this middleware, req.body would be undefined
+- Example: POST request with JSON data becomes accessible as req.body.username
+
+
+LINE 11-13: Root Route Handler
+--------
+app.get("/", (req, res) => {
+    res.send("CMS API RUNNING");
+});
+
+- Defines a GET route for the root path "/"
+- When user visits http://localhost:5000/ in browser, they see "CMS API RUNNING"
+- Useful for:
+  * Health checks - verify server is running
+  * API documentation landing page
+  * Quick test that server is responding
+- req: Request object (contains headers, params, body, etc.)
+- res: Response object (used to send data back to client)
+
+
+LINE 15: app.use("/api/auth", require("./routes/auth.routes"));
+--------
+- Mounts authentication routes at "/api/auth" prefix
+- All routes defined in auth.routes.js will be prefixed with "/api/auth"
+- Example routes that will be available:
+  * POST /api/auth/register - User registration
+  * POST /api/auth/login - User login
+  * POST /api/auth/verify-otp - OTP verification
+  * POST /api/auth/forgot-password - Password reset
+- require("./routes/auth.routes"): Imports the router from auth.routes.js
+- This keeps authentication logic organized in a separate file
+
+
+LINE 16: app.use("/api/artifacts", require("./routes/artifact.routes"));
+--------
+- Mounts artifact/content routes at "/api/artifacts" prefix
+- All routes defined in artifact.routes.js will be prefixed with "/api/artifacts"
+- Example routes that will be available:
+  * GET /api/artifacts - Get all artifacts
+  * POST /api/artifacts - Create new artifact
+  * GET /api/artifacts/:id - Get specific artifact
+  * PUT /api/artifacts/:id - Update artifact
+  * DELETE /api/artifacts/:id - Delete artifact
+- Separates artifact management logic from authentication logic
+
+
+LINE 18: module.exports = app;
+--------
+- Exports the configured Express app instance
+- Makes 'app' available for import in other files (like server.js)
+- This separation of concerns allows:
+  * Testing the app without starting the server
+  * Reusing app configuration in multiple places
+  * Cleaner code organization
+- In server.js, we import this with: const app = require("./src/app");
+
+
+MIDDLEWARE EXECUTION ORDER:
+---------------------------
+1. CORS middleware (app.use(cors()))
+2. Morgan logging middleware (app.use(morgan("dev")))
+3. JSON body parser (app.use(express.json()))
+4. Root route handler (app.get("/"))
+5. Auth routes (app.use("/api/auth", ...))
+6. Artifact routes (app.use("/api/artifacts", ...))
+
+Note: Order matters! Middleware executes in the order it's defined.
+JSON parser must come before routes that need req.body.
+
+
+REQUEST FLOW EXAMPLE:
+--------------------
+POST /api/auth/login with JSON body { "email": "user@example.com", "password": "123456" }
+
+1. Request hits the server
+2. CORS middleware adds appropriate headers
+3. Morgan logs: "POST /api/auth/login"
+4. express.json() parses JSON body → req.body = { email: "...", password: "..." }
+5. Request matches "/api/auth" prefix → forwards to auth.routes.js
+6. auth.routes.js handles "/login" → calls login controller
+7. Controller processes login → sends response
+8. Morgan logs: "POST /api/auth/login 200 123ms"
+
+
+WHY SEPARATE app.js FROM server.js?
+-----------------------------------
+✓ Testing: Can test routes without starting server
+✓ Organization: Keeps configuration separate from server startup
+✓ Reusability: Can use same app in multiple environments
+✓ Clarity: server.js focuses on server/database, app.js on Express config
+
+
+================================================================================
+5. .ENV FILE - COMPLETE EXPLANATION
+================================================================================
+
+The .env file stores environment variables - configuration values that should NOT
+be hardcoded in your source code. This file contains sensitive information and
+should NEVER be committed to Git (it's in .gitignore).
+
+
+COMPLETE .ENV FILE STRUCTURE:
+-----------------------------
+
+PORT=5000
+MONGO_URI=mongodb://localhost:27017/cms
+JWT_SECRET=69a9943e7a80ebcf7a91b9be61740640681f3b02d6df5389e5f658bce0
+JWT_EXPIRE=7d
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=ramsinghyadav4472@gmail.com
+EMAIL_PASS=your-app-specific-password-here
+EMAIL_FROM=CMS System <noreply@cms.com>
+OTP_EXPIRE_MINUTES=10
+NODE_ENV=development
+FRONTEND_URL=http://localhost:3000
+MAX_FILE_SIZE=10485760
+
+
+VARIABLE-BY-VARIABLE EXPLANATION:
+---------------------------------
+
+1. PORT=5000
+   - Purpose: Port number where the server will run
+   - Usage: process.env.PORT in server.js
+   - Common values: 5000, 3000, 8080
+   - Why needed: Tells Express which port to listen on
+   - Example: Server runs at http://localhost:5000
+
+2. MONGO_URI=mongodb://localhost:27017/cms
+   - Purpose: MongoDB database connection string
+   - Usage: mongoose.connect(process.env.MONGO_URI)
+   - Format: mongodb://[host]:[port]/[database-name]
+   - Local: mongodb://localhost:27017/cms
+   - Cloud (MongoDB Atlas): mongodb+srv://username:password@cluster.mongodb.net/cms
+   - Why needed: Tells Mongoose where to connect to database
+
+3. JWT_SECRET=69a9943e7a80ebcf7a91b9be61740640681f3b02d6df5389e5f658bce0
+   - Purpose: Secret key for signing JWT tokens
+   - Usage: jwt.sign(payload, process.env.JWT_SECRET)
+   - Security: MUST be long, random, and unique
+   - How to generate: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+   - Why needed: Ensures JWT tokens cannot be forged
+   - CRITICAL: Change this for production! If leaked, all tokens are compromised
+
+4. JWT_EXPIRE=7d
+   - Purpose: How long JWT tokens remain valid
+   - Usage: jwt.sign(payload, secret, { expiresIn: process.env.JWT_EXPIRE })
+   - Format: '7d' (7 days), '24h' (24 hours), '30m' (30 minutes)
+   - Common values: '7d', '1d', '12h'
+   - Why needed: Tokens should expire for security (prevents old tokens from working forever)
+
+5. EMAIL_HOST=smtp.gmail.com
+   - Purpose: SMTP server hostname for sending emails
+   - Usage: nodemailer transport configuration
+   - Gmail: smtp.gmail.com
+   - Outlook: smtp-mail.outlook.com
+   - Yahoo: smtp.mail.yahoo.com
+   - Why needed: Tells nodemailer which email service to use
+
+6. EMAIL_PORT=587
+   - Purpose: SMTP server port
+   - Usage: nodemailer transport configuration
+   - Port 587: TLS/STARTTLS (recommended)
+   - Port 465: SSL
+   - Port 25: Unencrypted (not recommended)
+   - Why needed: Different ports use different security protocols
+
+7. EMAIL_USER=ramsinghyadav4472@gmail.com
+   - Purpose: Email address used to send emails
+   - Usage: nodemailer auth configuration
+   - Format: your-email@gmail.com
+   - Why needed: Authentication for SMTP server
+
+8. EMAIL_PASS=your-app-specific-password-here
+   - Purpose: Password for email account
+   - Usage: nodemailer auth configuration
+   - IMPORTANT: For Gmail, use App Password, NOT your regular password!
+   - How to get: See "HOW TO GENERATE GMAIL APP PASSWORD" section below
+   - Format: 16-character code (remove spaces)
+   - Why needed: Authenticates with email provider
+
+9. EMAIL_FROM=CMS System <noreply@cms.com>
+   - Purpose: "From" name/address shown in sent emails
+   - Usage: mailOptions.from in nodemailer
+   - Format: "Display Name <email@domain.com>"
+   - Example: "CMS System <noreply@cms.com>"
+   - Why needed: Recipients see this as the sender
+
+10. OTP_EXPIRE_MINUTES=10
+    - Purpose: How long OTP codes remain valid
+    - Usage: Used in OTP verification logic
+    - Common values: 5, 10, 15 (minutes)
+    - Why needed: OTPs should expire quickly for security
+
+11. NODE_ENV=development
+    - Purpose: Indicates the environment (development/production)
+    - Usage: if (process.env.NODE_ENV === 'production') { ... }
+    - Values: 'development', 'production', 'test'
+    - Why needed: Different behavior in dev vs production
+    - Example: Show detailed errors in dev, hide in production
+
+12. FRONTEND_URL=http://localhost:3000
+    - Purpose: URL of the frontend application
+    - Usage: CORS configuration, email links
+    - Development: http://localhost:3000
+    - Production: https://yourfrontend.com
+    - Why needed: For CORS, redirects, email verification links
+
+13. MAX_FILE_SIZE=10485760
+    - Purpose: Maximum file upload size in bytes
+    - Usage: express.json({ limit: process.env.MAX_FILE_SIZE })
+    - Value: 10485760 bytes = 10 MB
+    - Calculation: 10 * 1024 * 1024 = 10485760
+    - Why needed: Prevents server crashes from huge uploads
+
+
+HOW TO GENERATE GMAIL APP PASSWORD:
+-----------------------------------
+
+Gmail requires App Passwords for third-party apps (like your Node.js backend).
+You CANNOT use your regular Gmail password!
+
+STEP 1: Enable 2-Step Verification
+   1. Go to: https://myaccount.google.com/security
+   2. Click "2-Step Verification"
+   3. Follow the setup process (requires phone)
+
+STEP 2: Generate App Password
+   1. Go to: https://myaccount.google.com/apppasswords
+      (Or: Google Account → Security → 2-Step Verification → App passwords)
+   2. Click "Select app" → Choose "Mail" or "Other (Custom name)"
+   3. Type a name: "CMS Backend" or "Node.js App"
+   4. Click "Generate"
+   5. Google shows a 16-character password (e.g., "abcd efgh ijkl mnop")
+   6. COPY IT IMMEDIATELY (you won't see it again!)
+   7. Remove spaces: "abcdefghijklmnop"
+   8. Paste into .env file: EMAIL_PASS=abcdefghijklmnop
+
+TROUBLESHOOTING:
+   - "App passwords" not showing? → Enable 2-Step Verification first
+   - Authentication error? → Remove all spaces from the app password
+   - Still not working? → Verify EMAIL_USER matches the Google account
+
+
+HOW TO GENERATE JWT_SECRET:
+---------------------------
+
+Method 1: Using Node.js (Recommended)
+   node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+   
+   This generates a 128-character random hexadecimal string.
+
+Method 2: Using OpenSSL
+   openssl rand -base64 64
+
+Method 3: Using PowerShell (Windows)
+   -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 64 | ForEach-Object {[char]$_})
+
+Method 4: Online Generator
+   Visit: https://randomkeygen.com/
+   Use "CodeIgniter Encryption Keys" or "256-bit WEP Keys"
+
+
+SECURITY BEST PRACTICES:
+------------------------
+
+✓ NEVER commit .env to Git
+  - Already in .gitignore
+  - If accidentally committed, change all secrets immediately!
+
+✓ Use different values for development and production
+  - Different JWT_SECRET
+  - Different database
+  - Different email accounts
+
+✓ Use strong, random JWT_SECRET
+  - At least 64 characters
+  - Use crypto.randomBytes() to generate
+
+✓ Use App Passwords for Gmail
+  - Never use your actual Gmail password
+  - Can revoke app passwords anytime
+
+✓ Keep .env file permissions restricted
+  - Only readable by the application user
+  - Not accessible to other users on the server
+
+✓ Use environment-specific .env files
+  - .env.development
+  - .env.production
+  - .env.test
+
+✓ Document required variables
+  - Create .env.example with dummy values
+  - Commit .env.example to Git (NOT .env!)
+
+
+.ENV.EXAMPLE FILE (Safe to commit to Git):
+------------------------------------------
+
+Create a file called .env.example with placeholder values:
+
+PORT=5000
+MONGO_URI=mongodb://localhost:27017/your-database-name
+JWT_SECRET=your-secret-key-here
+JWT_EXPIRE=7d
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=your-gmail-app-password
+EMAIL_FROM=Your App Name <noreply@example.com>
+OTP_EXPIRE_MINUTES=10
+NODE_ENV=development
+FRONTEND_URL=http://localhost:3000
+MAX_FILE_SIZE=10485760
+
+This helps other developers know what variables they need to set!
+
+
+HOW .ENV WORKS:
+--------------
+
+1. You create .env file in project root
+2. In server.js: require("dotenv").config()
+3. dotenv reads .env file
+4. Makes variables available via process.env
+5. Access anywhere: process.env.PORT, process.env.JWT_SECRET, etc.
+
+Example:
+   .env file:           PORT=5000
+   Access in code:      const port = process.env.PORT;
+   Result:              port = "5000" (string!)
+
+Note: All values are strings! Convert if needed:
+   const port = parseInt(process.env.PORT);  // Convert to number
+
+
+================================================================================
+6. DB.JS FILE - DATABASE CONNECTION EXPLANATION
+================================================================================
+
+COMPLETE FILE:
+-------------
+
+const mongoose = require("mongoose");
+
+const connectDB = async () => {
+
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log("MongoDB connected");
+};
+
+module.exports = connectDB;
+
+
+LINE-BY-LINE EXPLANATION:
+-------------------------
+
+LINE 1: const mongoose = require("mongoose");
+--------
+- Imports the Mongoose library
+- Mongoose is an ODM (Object Data Modeling) library for MongoDB and Node.js
+- Provides schema-based solution to model application data
+- Makes working with MongoDB easier with built-in validation, type casting, etc.
+- Why needed: Simplifies database operations compared to raw MongoDB driver
+
+
+LINE 3: const connectDB = async () => {
+--------
+- Defines an async function named 'connectDB'
+- async keyword allows use of 'await' inside the function
+- Arrow function syntax: () => { }
+- This function will be exported and called in server.js
+- Why async: mongoose.connect() returns a Promise, so we use async/await
+
+
+LINE 5: await mongoose.connect(process.env.MONGO_URI);
+--------
+- Connects to MongoDB database using Mongoose
+- await: Waits for connection to complete before continuing
+- process.env.MONGO_URI: Gets connection string from .env file
+  * Example: mongodb://localhost:27017/cms
+  * Or MongoDB Atlas: mongodb+srv://user:pass@cluster.mongodb.net/cms
+- mongoose.connect() returns a Promise
+- If connection fails, it will throw an error (should add try-catch in production)
+
+
+LINE 6: console.log("MongoDB connected");
+--------
+- Prints success message to console
+- Only executes if connection is successful
+- Helps confirm database is ready
+- In production, you might use a logger instead of console.log
+
+
+LINE 9: module.exports = connectDB;
+--------
+- Exports the connectDB function
+- Makes it available for import in other files
+- In server.js, we import and call this: connectDB();
+- Allows reusing this function across the application
+
+
+IMPROVED VERSION (with error handling):
+---------------------------------------
+
+const mongoose = require("mongoose");
+
+const connectDB = async () => {
+    try {
+        await mongoose.connect(process.env.MONGO_URI);
+        console.log("MongoDB connected successfully");
+    } catch (error) {
+        console.error("MongoDB connection error:", error.message);
+        process.exit(1); // Exit process with failure
+    }
+};
+
+module.exports = connectDB;
+
+
+MONGOOSE CONNECTION EVENTS:
+---------------------------
+
+You can also listen to connection events:
+
+mongoose.connection.on('connected', () => {
+    console.log('Mongoose connected to MongoDB');
+});
+
+mongoose.connection.on('error', (err) => {
+    console.error('Mongoose connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+    console.log('Mongoose disconnected');
+});
+
+
+CONNECTION OPTIONS (Optional):
+------------------------------
+
+You can pass options as second parameter:
+
+await mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,      // Use new URL parser
+    useUnifiedTopology: true,   // Use new topology engine
+    serverSelectionTimeoutMS: 5000, // Timeout after 5s
+});
+
+Note: In Mongoose 6+, these options are default and not needed.
+
+
+================================================================================
+7. USER.MODEL.JS FILE - USER SCHEMA EXPLANATION
+================================================================================
+
+COMPLETE FILE:
+-------------
+
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+
+const userSchema = new mongoose.Schema({
+    email: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    password: {
+        type: String,
+        required: true
+    },
+    isVerified: {
+        type: Boolean,
+        default: false
+    },
+},
+    { timestamps: true },
+);
+
+userSchema.pre("save", async function (next) {
+    if (!this.isModified("password")) return next();
+    this.password = await bcrypt.hash(this.password, 10);
+});
+
+module.exports = mongoose.model("User", userSchema);
+
+
+LINE-BY-LINE EXPLANATION:
+-------------------------
+
+LINE 1-2: Importing Dependencies
+--------
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+
+- Line 1: Imports Mongoose for creating schemas and models
+- Line 2: Imports bcrypt for password hashing
+- bcrypt: Secure password hashing library (prevents storing plain text passwords)
+
+
+LINE 4: const userSchema = new mongoose.Schema({
+--------
+- Creates a new Mongoose schema
+- Schema defines the structure of documents in MongoDB collection
+- Like a blueprint for user documents
+- Specifies fields, types, validation rules, and defaults
+
+
+LINE 5-9: Email Field Definition
+--------
+email: {
+    type: String,
+    required: true,
+    unique: true
+}
+
+- type: String - Email must be a string
+- required: true - Email is mandatory (cannot create user without it)
+- unique: true - No two users can have the same email
+  * MongoDB creates an index to enforce uniqueness
+  * Attempting to save duplicate email will throw error
+- Why needed: Email is used for login and identification
+
+
+LINE 10-13: Password Field Definition
+--------
+password: {
+    type: String,
+    required: true
+}
+
+- type: String - Password stored as string (will be hashed)
+- required: true - Password is mandatory
+- No 'unique' - Multiple users could theoretically have same password (but hashed differently)
+- Note: Plain text password is hashed before saving (see pre-save hook below)
+
+
+LINE 14-17: isVerified Field Definition
+--------
+isVerified: {
+    type: Boolean,
+    default: false
+}
+
+- type: Boolean - True or false value
+- default: false - New users start as unverified
+- Purpose: Track if user has verified their email via OTP
+- Users might need to verify email before accessing certain features
+
+
+LINE 19: { timestamps: true }
+--------
+- Schema option that automatically adds two fields:
+  * createdAt: Timestamp when document was created
+  * updatedAt: Timestamp when document was last modified
+- Mongoose automatically manages these fields
+- Very useful for tracking user registration date and last update
+- Example: { createdAt: "2026-02-10T10:21:29Z", updatedAt: "2026-02-10T10:21:29Z" }
+
+
+LINE 22-25: Pre-Save Hook (Middleware)
+--------
+userSchema.pre("save", async function (next) {
+    if (!this.isModified("password")) return next();
+    this.password = await bcrypt.hash(this.password, 10);
+});
+
+This is CRITICAL for security! Let's break it down:
+
+LINE 22: userSchema.pre("save", async function (next) {
+- pre("save"): Middleware that runs BEFORE saving document to database
+- async function: Allows using await for bcrypt.hash()
+- next: Callback to continue to next middleware or save operation
+- 'this' refers to the document being saved
+
+LINE 23: if (!this.isModified("password")) return next();
+- Checks if password field was modified
+- If password NOT modified (e.g., updating email only), skip hashing
+- return next(): Skip to next middleware/save operation
+- Why needed: Prevents re-hashing already hashed passwords
+
+LINE 24: this.password = await bcrypt.hash(this.password, 10);
+- bcrypt.hash(): Hashes the plain text password
+- this.password: The plain text password from user input
+- 10: Salt rounds (higher = more secure but slower)
+  * 10 is a good balance between security and performance
+  * Each round doubles the hashing time
+- await: Waits for hashing to complete (it's asynchronous)
+- Result: Replaces plain text password with hashed version
+- Example: "password123" → "$2b$10$N9qo8uLOickgx2ZMRZoMye..."
+
+
+LINE 27: module.exports = mongoose.model("User", userSchema);
+--------
+- Creates a Mongoose model from the schema
+- "User": Model name (MongoDB collection will be "users" - lowercase, plural)
+- userSchema: The schema we defined above
+- Exports the model for use in other files (controllers, routes)
+- This model provides methods like:
+  * User.create() - Create new user
+  * User.findOne() - Find one user
+  * User.findById() - Find by ID
+  * User.updateOne() - Update user
+  * User.deleteOne() - Delete user
+
+
+HOW PASSWORD HASHING WORKS:
+---------------------------
+
+1. User registers with password: "myPassword123"
+2. Pre-save hook triggers before saving to database
+3. bcrypt.hash() converts "myPassword123" → "$2b$10$abc123def456..."
+4. Hashed password is saved to database
+5. Original password is never stored!
+
+When user logs in:
+1. User enters password: "myPassword123"
+2. Fetch user from database (has hashed password)
+3. Use bcrypt.compare(plainPassword, hashedPassword)
+4. bcrypt.compare() hashes input and compares with stored hash
+5. Returns true if match, false if not
+
+
+EXAMPLE USAGE IN CONTROLLER:
+----------------------------
+
+// Creating a new user
+const newUser = await User.create({
+    email: "user@example.com",
+    password: "plainPassword123"  // Will be auto-hashed by pre-save hook
+});
+
+// Finding a user
+const user = await User.findOne({ email: "user@example.com" });
+
+// Comparing passwords (in login controller)
+const isMatch = await bcrypt.compare(inputPassword, user.password);
+if (isMatch) {
+    // Password correct - generate JWT token
+} else {
+    // Password incorrect - send error
+}
+
+
+DOCUMENT STRUCTURE IN MONGODB:
+------------------------------
+
+After saving a user, the document looks like:
+
+{
+    _id: ObjectId("507f1f77bcf86cd799439011"),
+    email: "user@example.com",
+    password: "$2b$10$N9qo8uLOickgx2ZMRZoMye...",  // Hashed!
+    isVerified: false,
+    createdAt: ISODate("2026-02-10T10:21:29.000Z"),
+    updatedAt: ISODate("2026-02-10T10:21:29.000Z"),
+    __v: 0  // Version key (Mongoose internal)
+}
+
+
+SECURITY NOTES:
+--------------
+
+✓ NEVER store plain text passwords
+✓ Always hash passwords before saving (pre-save hook does this)
+✓ Use bcrypt.compare() to verify passwords (never compare hashes directly)
+✓ Salt rounds of 10-12 are recommended (10 is good for most apps)
+✓ Each password gets a unique salt (bcrypt handles this automatically)
+✓ Even identical passwords have different hashes
+
+
+COMMON METHODS YOU'LL USE:
+--------------------------
+
+// Create user
+const user = await User.create({ email, password });
+
+// Find by email
+const user = await User.findOne({ email: "user@example.com" });
+
+// Find by ID
+const user = await User.findById(userId);
+
+// Update user
+await User.updateOne({ _id: userId }, { isVerified: true });
+
+// Delete user
+await User.deleteOne({ _id: userId });
+
+// Count users
+const count = await User.countDocuments();
+
+
+================================================================================
+8. OTP.MODEL.JS FILE - OTP SCHEMA EXPLANATION
+================================================================================
+
+COMPLETE FILE:
+-------------
+
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+
+const otpSchema = new mongoose.Schema({
+    email: String,
+    otp: String,
+    createdAt: Date,
+    expiresAt: Date,
+},
+    { timestamps: true },
+);
+
+otpSchema.pre("save", async function (next) {
+    if (!this.isModified("otp")) return next();
+    this.otp = await bcrypt.hash(this.otp, 10);
+});
+
+module.exports = mongoose.model("OTP", otpSchema);
+
+
+LINE-BY-LINE EXPLANATION:
+-------------------------
+
+LINE 1-2: Importing Dependencies
+--------
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+
+- Line 1: Imports Mongoose for creating schemas and models
+- Line 2: Imports bcrypt for OTP hashing
+- Why hash OTP? Security! Even if database is compromised, OTPs are protected
+
+
+LINE 4: const otpSchema = new mongoose.Schema({
+--------
+- Creates a new Mongoose schema for OTP documents
+- OTP (One-Time Password) is used for email verification
+- Each OTP document represents one verification attempt
+- Temporary data - usually deleted after verification or expiration
+
+
+LINE 5: email: String,
+--------
+- Stores the email address this OTP is for
+- Type: String (no validation here, but should match user's email)
+- Not marked as required (but should be in practice)
+- Links the OTP to a specific user's email
+- Example: "user@example.com"
+
+
+LINE 6: otp: String,
+--------
+- Stores the OTP code (will be hashed before saving)
+- Type: String (even though OTP is numeric, stored as string)
+- Generated by otp-generator package
+- Example (before hashing): "123456"
+- Example (after hashing): "$2b$10$abc123def456..."
+- Why hash? Protects OTP even if database is breached
+
+
+LINE 7: createdAt: Date,
+--------
+- Timestamp when OTP was created
+- Type: Date
+- Used to track when OTP was generated
+- Can be used to calculate age of OTP
+- Example: new Date() → "2026-02-10T10:27:33.000Z"
+
+
+LINE 8: expiresAt: Date,
+--------
+- Timestamp when OTP expires
+- Type: Date
+- Calculated as: createdAt + OTP_EXPIRE_MINUTES (from .env)
+- Example: If OTP_EXPIRE_MINUTES=10, expiresAt = createdAt + 10 minutes
+- Used to check if OTP is still valid
+- Calculation: new Date(Date.now() + 10 * 60 * 1000)
+
+
+LINE 10: { timestamps: true }
+--------
+- Automatically adds createdAt and updatedAt fields
+- Wait, we already have createdAt on line 7!
+- This creates ANOTHER createdAt (Mongoose's automatic one)
+- Consider removing { timestamps: true } to avoid duplication
+- Or remove manual createdAt field and use Mongoose's automatic one
+
+
+LINE 13-16: Pre-Save Hook (OTP Hashing)
+--------
+otpSchema.pre("save", async function (next) {
+    if (!this.isModified("otp")) return next();
+    this.otp = await bcrypt.hash(this.otp, 10);
+});
+
+Similar to user.model.js password hashing!
+
+LINE 13: otpSchema.pre("save", async function (next) {
+- Middleware that runs BEFORE saving OTP to database
+- async function: Allows using await for bcrypt.hash()
+- next: Callback to continue to save operation
+
+LINE 14: if (!this.isModified("otp")) return next();
+- Checks if OTP field was modified
+- If OTP NOT modified, skip hashing
+- Prevents re-hashing already hashed OTPs
+
+LINE 15: this.otp = await bcrypt.hash(this.otp, 10);
+- Hashes the plain text OTP code
+- this.otp: Plain text OTP (e.g., "123456")
+- 10: Salt rounds (same as password hashing)
+- Result: "123456" → "$2b$10$N9qo8uLOickgx2ZMRZoMye..."
+- Why hash OTP? Security best practice!
+
+
+LINE 18: module.exports = mongoose.model("OTP", otpSchema);
+--------
+- Creates and exports the OTP model
+- "OTP": Model name (collection will be "otps" in MongoDB)
+- otpSchema: The schema we defined above
+- Used in auth controller for OTP verification
+
+
+HOW OTP VERIFICATION WORKS:
+---------------------------
+
+STEP 1: User Registration
+1. User submits email and password
+2. Generate random OTP: const otp = otpGenerator.generate(6, { digits: true })
+3. Create OTP document:
+   {
+       email: "user@example.com",
+       otp: "123456",  // Will be hashed by pre-save hook
+       createdAt: new Date(),
+       expiresAt: new Date(Date.now() + 10 * 60 * 1000)  // 10 minutes
+   }
+4. Send OTP to user's email via nodemailer
+5. Save user as unverified (isVerified: false)
+
+STEP 2: User Enters OTP
+1. User receives email with OTP: "123456"
+2. User submits OTP for verification
+3. Find OTP document by email
+4. Check if OTP expired: if (Date.now() > otpDoc.expiresAt) → expired!
+5. Compare OTP: const isValid = await bcrypt.compare(inputOTP, otpDoc.otp)
+6. If valid and not expired:
+   - Update user: isVerified = true
+   - Delete OTP document (no longer needed)
+7. If invalid or expired:
+   - Return error
+   - Optionally delete expired OTP
+
+
+EXAMPLE USAGE IN AUTH CONTROLLER:
+---------------------------------
+
+// 1. GENERATING AND SAVING OTP (during registration)
+const otpGenerator = require("otp-generator");
+
+// Generate 6-digit OTP
+const otpCode = otpGenerator.generate(6, { 
+    digits: true, 
+    upperCaseAlphabets: false,
+    lowerCaseAlphabets: false,
+    specialChars: false 
+});
+
+// Create OTP document
+const otpDoc = await OTP.create({
+    email: user.email,
+    otp: otpCode,  // Will be auto-hashed by pre-save hook
+    createdAt: new Date(),
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000)  // 10 min
+});
+
+// Send OTP via email (using nodemailer)
+await sendEmail(user.email, "Your OTP Code", `Your OTP is: ${otpCode}`);
+
+
+// 2. VERIFYING OTP (during verification)
+const verifyOTP = async (email, inputOTP) => {
+    // Find OTP document
+    const otpDoc = await OTP.findOne({ email }).sort({ createdAt: -1 });
+    
+    if (!otpDoc) {
+        return { success: false, message: "OTP not found" };
+    }
+    
+    // Check if expired
+    if (Date.now() > otpDoc.expiresAt) {
+        await OTP.deleteOne({ _id: otpDoc._id });  // Clean up
+        return { success: false, message: "OTP expired" };
+    }
+    
+    // Compare OTP
+    const isValid = await bcrypt.compare(inputOTP, otpDoc.otp);
+    
+    if (!isValid) {
+        return { success: false, message: "Invalid OTP" };
+    }
+    
+    // OTP is valid!
+    await User.updateOne({ email }, { isVerified: true });
+    await OTP.deleteOne({ _id: otpDoc._id });  // Clean up
+    
+    return { success: true, message: "Email verified successfully" };
+};
+
+
+DOCUMENT STRUCTURE IN MONGODB:
+------------------------------
+
+After saving an OTP, the document looks like:
+
+{
+    _id: ObjectId("507f1f77bcf86cd799439011"),
+    email: "user@example.com",
+    otp: "$2b$10$N9qo8uLOickgx2ZMRZoMye...",  // Hashed!
+    createdAt: ISODate("2026-02-10T10:27:33.000Z"),
+    expiresAt: ISODate("2026-02-10T10:37:33.000Z"),  // 10 min later
+    __v: 0
+}
+
+
+OTP EXPIRATION CALCULATION:
+---------------------------
+
+From .env file: OTP_EXPIRE_MINUTES=10
+
+In controller:
+const expirationTime = parseInt(process.env.OTP_EXPIRE_MINUTES) * 60 * 1000;
+const expiresAt = new Date(Date.now() + expirationTime);
+
+Breakdown:
+- OTP_EXPIRE_MINUTES = 10 (minutes)
+- 10 * 60 = 600 (seconds)
+- 600 * 1000 = 600,000 (milliseconds)
+- Date.now() = current timestamp in milliseconds
+- Date.now() + 600,000 = 10 minutes from now
+
+
+SECURITY BEST PRACTICES:
+------------------------
+
+✓ Hash OTPs before storing (pre-save hook does this)
+✓ Set expiration time (10 minutes is common)
+✓ Delete OTP after successful verification
+✓ Delete expired OTPs (cleanup job or on-demand)
+✓ Limit OTP generation attempts (prevent spam)
+✓ Use 6-digit numeric OTPs (balance of security and usability)
+✓ Send OTP via secure channel (email with TLS)
+✓ Don't log OTPs in plain text
+✓ Rate limit OTP verification attempts (prevent brute force)
+
+
+IMPROVEMENTS TO CONSIDER:
+-------------------------
+
+1. Add field validation:
+   email: {
+       type: String,
+       required: true,
+       lowercase: true,
+       trim: true
+   }
+
+2. Add attempt counter:
+   attempts: {
+       type: Number,
+       default: 0
+   }
+
+3. Add TTL index (auto-delete expired OTPs):
+   otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+4. Remove duplicate timestamps:
+   Either use manual createdAt/expiresAt OR { timestamps: true }, not both
+
+
+CLEANUP STRATEGY:
+-----------------
+
+Option 1: Manual cleanup after verification
+await OTP.deleteOne({ _id: otpDoc._id });
+
+Option 2: TTL Index (MongoDB auto-deletes)
+otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+Option 3: Scheduled cleanup job (cron)
+// Delete all expired OTPs every hour
+setInterval(async () => {
+    await OTP.deleteMany({ expiresAt: { $lt: new Date() } });
+}, 60 * 60 * 1000);
+
+
+COMMON METHODS:
+--------------
+
+// Create OTP
+const otp = await OTP.create({ email, otp: otpCode, createdAt, expiresAt });
+
+// Find latest OTP for email
+const otp = await OTP.findOne({ email }).sort({ createdAt: -1 });
+
+// Delete OTP after verification
+await OTP.deleteOne({ _id: otp._id });
+
+// Delete all expired OTPs
+await OTP.deleteMany({ expiresAt: { $lt: new Date() } });
+
+// Count OTPs for an email (rate limiting)
+const count = await OTP.countDocuments({ 
+    email, 
+    createdAt: { $gte: new Date(Date.now() - 60 * 60 * 1000) } 
+});
+
+
+WHY HASH OTPs?
+--------------
+
+You might wonder: "Why hash a temporary 6-digit code?"
+
+Reasons:
+1. Defense in depth - even temporary data should be protected
+2. Database breach protection - attackers can't use stolen OTPs
+3. Compliance - some regulations require hashing all sensitive data
+4. Best practice - treat OTPs like passwords
+5. Minimal performance cost - hashing is fast enough for OTPs
+
+Trade-off:
+- Slightly more complex verification (need bcrypt.compare)
+- Slightly slower (but negligible for OTPs)
+- Cannot view OTP in database (but you shouldn't need to!)
+
+
+================================================================================
+9. ARTIFACT.MODEL.JS FILE - ARTIFACT SCHEMA EXPLANATION
+================================================================================
+
+COMPLETE FILE:
+-------------
+
+const mongoose = require("mongoose");
+const artifactSchema = new mongoose.Schema({
+    title: String,
+    description: String,
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+    }
+},
+    { timestamps: true },
+);
+
+module.exports = mongoose.model("Artifact", artifactSchema);
+
+
+LINE-BY-LINE EXPLANATION:
+-------------------------
+
+LINE 1: const mongoose = require("mongoose");
+--------
+- Imports Mongoose library
+- Needed for creating schemas and models
+- Standard import for all model files
+
+
+LINE 2: const artifactSchema = new mongoose.Schema({
+--------
+- Creates a new Mongoose schema for artifacts
+- Artifact = content/document in your CMS (Content Management System)
+- Could be blog posts, articles, pages, documents, etc.
+- Defines the structure of artifact documents
+
+
+LINE 3: title: String,
+--------
+- Title of the artifact/content
+- Type: String
+- No validation specified (not required, no length limits)
+- Example: "My First Blog Post", "About Us Page"
+- Should consider adding: required: true, trim: true, maxlength: 200
+
+
+LINE 4: description: String,
+--------
+- Description or content of the artifact
+- Type: String
+- Could be short description or full content
+- No length limit specified
+- Example: "This is the content of my blog post..."
+- Consider renaming to 'content' if storing full article text
+
+
+LINE 5-8: createdBy Field (User Reference)
+--------
+createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User"
+}
+
+This is a REFERENCE to another collection (User)!
+
+LINE 6: type: mongoose.Schema.Types.ObjectId
+- Special Mongoose type for referencing other documents
+- Stores the _id of a User document
+- ObjectId is MongoDB's unique identifier type
+- Example value: ObjectId("507f1f77bcf86cd799439011")
+
+LINE 7: ref: "User"
+- References the "User" model
+- Tells Mongoose this ObjectId points to a User document
+- Enables population (joining data from User collection)
+- Must match the model name: mongoose.model("User", ...)
+
+
+LINE 10: { timestamps: true }
+--------
+- Automatically adds two fields:
+  * createdAt: When artifact was created
+  * updatedAt: When artifact was last modified
+- Mongoose manages these automatically
+- Very useful for tracking content creation and modification dates
+
+
+LINE 13: module.exports = mongoose.model("Artifact", artifactSchema);
+--------
+- Creates and exports the Artifact model
+- "Artifact": Model name (collection will be "artifacts" in MongoDB)
+- artifactSchema: The schema we defined above
+- Used in artifact controller for CRUD operations
+
+
+WHAT IS A REFERENCE/RELATIONSHIP?
+---------------------------------
+
+The createdBy field creates a relationship between Artifacts and Users:
+
+User Collection:
+{
+    _id: ObjectId("abc123"),
+    email: "john@example.com",
+    password: "$2b$10$...",
+    isVerified: true
+}
+
+Artifact Collection:
+{
+    _id: ObjectId("xyz789"),
+    title: "My Blog Post",
+    description: "Content here...",
+    createdBy: ObjectId("abc123"),  // References the User above!
+    createdAt: "2026-02-10T10:33:15Z",
+    updatedAt: "2026-02-10T10:33:15Z"
+}
+
+This links the artifact to the user who created it!
+
+
+POPULATION (JOINING DATA):
+--------------------------
+
+Without population:
+const artifact = await Artifact.findById(artifactId);
+console.log(artifact.createdBy);  // ObjectId("abc123")
+
+With population:
+const artifact = await Artifact.findById(artifactId).populate("createdBy");
+console.log(artifact.createdBy);  
+// {
+//     _id: ObjectId("abc123"),
+//     email: "john@example.com",
+//     isVerified: true
+// }
+
+Population "joins" the User data automatically!
+
+
+EXAMPLE USAGE IN CONTROLLER:
+----------------------------
+
+// 1. CREATE ARTIFACT (with authenticated user)
+const createArtifact = async (req, res) => {
+    const { title, description } = req.body;
+    const userId = req.user._id;  // From auth middleware
+    
+    const artifact = await Artifact.create({
+        title,
+        description,
+        createdBy: userId  // Link to user who created it
+    });
+    
+    res.status(201).json({ success: true, artifact });
+};
+
+
+// 2. GET ALL ARTIFACTS (with creator info)
+const getAllArtifacts = async (req, res) => {
+    const artifacts = await Artifact.find()
+        .populate("createdBy", "email")  // Only include email field
+        .sort({ createdAt: -1 });  // Newest first
+    
+    res.json({ success: true, artifacts });
+};
+
+
+// 3. GET SINGLE ARTIFACT (with full creator info)
+const getArtifact = async (req, res) => {
+    const artifact = await Artifact.findById(req.params.id)
+        .populate("createdBy", "email isVerified");
+    
+    if (!artifact) {
+        return res.status(404).json({ message: "Artifact not found" });
+    }
+    
+    res.json({ success: true, artifact });
+};
+
+
+// 4. UPDATE ARTIFACT (only by creator)
+const updateArtifact = async (req, res) => {
+    const { title, description } = req.body;
+    const userId = req.user._id;
+    
+    const artifact = await Artifact.findById(req.params.id);
+    
+    // Check if user is the creator
+    if (artifact.createdBy.toString() !== userId.toString()) {
+        return res.status(403).json({ message: "Not authorized" });
+    }
+    
+    artifact.title = title || artifact.title;
+    artifact.description = description || artifact.description;
+    await artifact.save();  // updatedAt auto-updates!
+    
+    res.json({ success: true, artifact });
+};
+
+
+// 5. DELETE ARTIFACT (only by creator)
+const deleteArtifact = async (req, res) => {
+    const userId = req.user._id;
+    const artifact = await Artifact.findById(req.params.id);
+    
+    if (artifact.createdBy.toString() !== userId.toString()) {
+        return res.status(403).json({ message: "Not authorized" });
+    }
+    
+    await Artifact.deleteOne({ _id: req.params.id });
+    res.json({ success: true, message: "Artifact deleted" });
+};
+
+
+// 6. GET USER'S ARTIFACTS (all artifacts by specific user)
+const getUserArtifacts = async (req, res) => {
+    const userId = req.user._id;
+    
+    const artifacts = await Artifact.find({ createdBy: userId })
+        .sort({ createdAt: -1 });
+    
+    res.json({ success: true, count: artifacts.length, artifacts });
+};
+
+
+DOCUMENT STRUCTURE IN MONGODB:
+------------------------------
+
+After creating an artifact, the document looks like:
+
+{
+    _id: ObjectId("507f1f77bcf86cd799439011"),
+    title: "Introduction to Node.js",
+    description: "Node.js is a JavaScript runtime built on Chrome's V8 engine...",
+    createdBy: ObjectId("507f191e810c19729de860ea"),  // User's _id
+    createdAt: ISODate("2026-02-10T10:33:15.000Z"),
+    updatedAt: ISODate("2026-02-10T10:33:15.000Z"),
+    __v: 0
+}
+
+
+POPULATE OPTIONS:
+-----------------
+
+// Basic population
+.populate("createdBy")
+
+// Select specific fields
+.populate("createdBy", "email")
+
+// Multiple fields
+.populate("createdBy", "email isVerified")
+
+// Exclude password (important!)
+.populate("createdBy", "-password")
+
+// Nested population (if User has references too)
+.populate({
+    path: "createdBy",
+    select: "email",
+    populate: { path: "profile" }
+})
+
+
+IMPROVEMENTS TO CONSIDER:
+-------------------------
+
+1. Add validation:
+   title: {
+       type: String,
+       required: [true, "Title is required"],
+       trim: true,
+       maxlength: [200, "Title cannot exceed 200 characters"]
+   }
+
+2. Add more fields:
+   status: {
+       type: String,
+       enum: ["draft", "published", "archived"],
+       default: "draft"
+   },
+   tags: [String],
+   views: { type: Number, default: 0 },
+   likes: { type: Number, default: 0 }
+
+3. Add indexes for performance:
+   artifactSchema.index({ createdBy: 1, createdAt: -1 });
+   artifactSchema.index({ title: "text", description: "text" });
+
+4. Add virtual fields:
+   artifactSchema.virtual("summary").get(function() {
+       return this.description.substring(0, 100) + "...";
+   });
+
+
+COMMON QUERIES:
+--------------
+
+// Find all artifacts
+const artifacts = await Artifact.find();
+
+// Find by ID with creator info
+const artifact = await Artifact.findById(id).populate("createdBy");
+
+// Find by creator
+const artifacts = await Artifact.find({ createdBy: userId });
+
+// Find with search
+const artifacts = await Artifact.find({
+    title: { $regex: searchTerm, $options: "i" }
+});
+
+// Count artifacts by user
+const count = await Artifact.countDocuments({ createdBy: userId });
+
+// Pagination
+const artifacts = await Artifact.find()
+    .skip(page * limit)
+    .limit(limit)
+    .sort({ createdAt: -1 });
+
+
+AUTHORIZATION PATTERNS:
+----------------------
+
+Always check if user owns the artifact before update/delete:
+
+// Method 1: Manual check
+const artifact = await Artifact.findById(id);
+if (artifact.createdBy.toString() !== req.user._id.toString()) {
+    return res.status(403).json({ message: "Not authorized" });
+}
+
+// Method 2: Query with ownership
+const artifact = await Artifact.findOne({ 
+    _id: id, 
+    createdBy: req.user._id 
+});
+if (!artifact) {
+    return res.status(404).json({ message: "Not found or not authorized" });
+}
+
+
+OBJECTID COMPARISON:
+-------------------
+
+When comparing ObjectIds, convert to string:
+
+// WRONG - may not work
+if (artifact.createdBy === userId) { ... }
+
+// CORRECT - convert to string
+if (artifact.createdBy.toString() === userId.toString()) { ... }
+
+// ALSO CORRECT - use .equals()
+if (artifact.createdBy.equals(userId)) { ... }
+
+
+TYPICAL API ENDPOINTS:
+---------------------
+
+POST   /api/artifacts          - Create artifact (auth required)
+GET    /api/artifacts          - Get all artifacts
+GET    /api/artifacts/:id      - Get single artifact
+PUT    /api/artifacts/:id      - Update artifact (auth + ownership required)
+DELETE /api/artifacts/:id      - Delete artifact (auth + ownership required)
+GET    /api/artifacts/my       - Get current user's artifacts (auth required)
+
+
+RESPONSE EXAMPLE WITH POPULATION:
+---------------------------------
+
+GET /api/artifacts/:id with population:
+
+{
+    "success": true,
+    "artifact": {
+        "_id": "507f1f77bcf86cd799439011",
+        "title": "Introduction to Node.js",
+        "description": "Node.js is a JavaScript runtime...",
+        "createdBy": {
+            "_id": "507f191e810c19729de860ea",
+            "email": "john@example.com",
+            "isVerified": true
+        },
+        "createdAt": "2026-02-10T10:33:15.000Z",
+        "updatedAt": "2026-02-10T10:33:15.000Z"
+    }
+}
+
+
+================================================================================
+10. HOW TO RUN THE PROJECT
+================================================================================
+
+Step 1: Install dependencies
+   npm install express mongoose cors morgan dotenv bcrypt jsonwebtoken nodemailer otp-generator
+
+Step 2: Create .env file with required variables (see section 4)
+
+Step 3: Start MongoDB (if running locally)
+   mongod
+
+Step 4: Start the server
+   node server.js
+   OR (if nodemon is installed)
+   npm run dev
+
+Step 5: Server should display:
+   "Server is running on port 5000"
+   "MongoDB connected successfully"
+
+
+================================================================================
+6. COMMON ISSUES & SOLUTIONS
+================================================================================
+
+Issue: "Cannot find module 'dotenv'"
+Solution: Run npm install to install all dependencies
+
+Issue: "MongoNetworkError: failed to connect to server"
+Solution: Ensure MongoDB is running (mongod command)
+
+Issue: "Port 5000 is already in use"
+Solution: Change PORT in .env file or kill process using port 5000
+
+Issue: ".env file not loading"
+Solution: Ensure .env is in root directory (same level as server.js)
+
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
