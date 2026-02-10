@@ -1661,7 +1661,431 @@ GET /api/artifacts/:id with population:
 
 
 ================================================================================
-10. HOW TO RUN THE PROJECT
+10. AUTH.CONTROLLER.JS FILE - AUTHENTICATION CONTROLLER EXPLANATION
+================================================================================
+
+COMPLETE FILE:
+-------------
+
+const User = require("../models/user.model");
+const bcrypt = require("bcrypt");
+const OTP = require("../models/otp.model");
+const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
+const otpGenerator = require("otp-generator");
+
+const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+    },
+});
+
+exports.sendOTP = async (req, res) => {
+    const { email } = req.body;
+    const otp = otpGenerator.generate(6, { digits: true });
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await OTP.create({ email, otp, expiresAt });
+    await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: "OTP for registration",
+        text: `Your OTP is ${otp}`,
+    });
+    res.status(200).json({ message: "OTP sent successfully" });
+}
+
+exports.verifyOTP = async (req, res) => {
+    const { email, otp } = req.body;
+    const otpDoc = await OTP.findOne({ email }).sort({ createdAt: -1 });
+    if (!otpDoc) {
+        return res.status(400).json({ message: "OTP not found" });
+    }
+    if (otpDoc.expiresAt < Date.now()) {
+        return res.status(400).json({ message: "OTP expired" });
+    }
+    const isMatch = await bcrypt.compare(otp, otpDoc.otp);
+    if (!isMatch) {
+        return res.status(400).json({ message: "Invalid OTP" });
+    }
+    await OTP.deleteOne({ email });
+    res.status(200).json({ message: "OTP verified successfully" });
+};
+
+exports.signup = async (req, res) => {
+    const { email, password } = req.body;
+    const user = await User.create({ email, password });
+    res.status(201).json({ message: "User created successfully" });
+}
+
+
+LINE-BY-LINE EXPLANATION:
+-------------------------
+
+LINE 1-6: Importing Dependencies
+--------
+const User = require("../models/user.model");
+const bcrypt = require("bcrypt");
+const OTP = require("../models/otp.model");
+const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
+const otpGenerator = require("otp-generator");
+
+- Line 1: User model for database operations
+- Line 2: bcrypt for comparing hashed OTPs
+- Line 3: OTP model for OTP database operations
+- Line 4: jsonwebtoken for creating JWT tokens (imported but not used yet)
+- Line 5: nodemailer for sending emails
+- Line 6: otp-generator for creating random OTP codes
+
+
+LINE 8-14: Nodemailer Transporter Setup
+--------
+const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+    },
+});
+
+- Creates email transporter (email sending configuration)
+- service: "gmail" - Uses Gmail SMTP server
+- auth.user: Email address from .env (EMAIL_USER)
+- auth.pass: Gmail app password from .env (EMAIL_PASS)
+- transporter is reused for all email sending operations
+- Created once at module load, not per request (efficient!)
+
+
+LINE 16-28: sendOTP Function
+--------
+exports.sendOTP = async (req, res) => {
+    const { email } = req.body;
+    const otp = otpGenerator.generate(6, { digits: true });
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await OTP.create({ email, otp, expiresAt });
+    await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: "OTP for registration",
+        text: `Your OTP is ${otp}`,
+    });
+    res.status(200).json({ message: "OTP sent successfully" });
+}
+
+LINE 16: exports.sendOTP = async (req, res) => {
+- Exports function to be used in routes
+- async: Allows using await for database and email operations
+- req: Request object (contains body, params, headers)
+- res: Response object (used to send response back)
+
+LINE 17: const { email } = req.body;
+- Destructures email from request body
+- Client sends: { "email": "user@example.com" }
+- Should add validation: check if email exists, valid format
+
+LINE 18: const otp = otpGenerator.generate(6, { digits: true });
+- Generates 6-digit numeric OTP
+- digits: true - Only numbers (0-9)
+- Result: "123456", "789012", etc.
+- This is the PLAIN TEXT OTP (will be hashed when saved)
+
+LINE 19: const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+- Calculates expiration time (10 minutes from now)
+- Date.now(): Current timestamp in milliseconds
+- 10 * 60 * 1000 = 600,000 milliseconds = 10 minutes
+- Should use process.env.OTP_EXPIRE_MINUTES for flexibility
+
+LINE 20: await OTP.create({ email, otp, expiresAt });
+- Saves OTP to database
+- OTP will be auto-hashed by pre-save hook in otp.model.js
+- Also saves email and expiration time
+- Returns the created OTP document
+
+LINE 21-26: await transporter.sendMail({ ... });
+- Sends email with OTP to user
+- from: Sender email address
+- to: Recipient email (user's email)
+- subject: Email subject line
+- text: Plain text email body with OTP
+- Could improve with HTML template for better formatting
+
+LINE 27: res.status(200).json({ message: "OTP sent successfully" });
+- Sends success response to client
+- Status 200: OK
+- Returns JSON message
+- Client knows OTP was sent (but doesn't receive the OTP in response!)
+
+
+LINE 30-45: verifyOTP Function
+--------
+exports.verifyOTP = async (req, res) => {
+    const { email, otp } = req.body;
+    const otpDoc = await OTP.findOne({ email }).sort({ createdAt: -1 });
+    if (!otpDoc) {
+        return res.status(400).json({ message: "OTP not found" });
+    }
+    if (otpDoc.expiresAt < Date.now()) {
+        return res.status(400).json({ message: "OTP expired" });
+    }
+    const isMatch = await bcrypt.compare(otp, otpDoc.otp);
+    if (!isMatch) {
+        return res.status(400).json({ message: "Invalid OTP" });
+    }
+    await OTP.deleteOne({ email });
+    res.status(200).json({ message: "OTP verified successfully" });
+};
+
+LINE 31: const { email, otp } = req.body;
+- Gets email and OTP from request body
+- Client sends: { "email": "user@example.com", "otp": "123456" }
+
+LINE 32: const otpDoc = await OTP.findOne({ email }).sort({ createdAt: -1 });
+- Finds most recent OTP for this email
+- .sort({ createdAt: -1 }): Sorts by creation time, newest first
+- Why? User might have requested multiple OTPs
+- Gets the latest one
+
+LINE 33-35: if (!otpDoc) { ... }
+- Checks if OTP document exists
+- If not found: User never requested OTP or it was already deleted
+- Returns 400 Bad Request with error message
+
+LINE 36-38: if (otpDoc.expiresAt < Date.now()) { ... }
+- Checks if OTP has expired
+- otpDoc.expiresAt: When OTP expires (Date object)
+- Date.now(): Current timestamp
+- If expired, return error
+- Should also delete expired OTP here!
+
+LINE 39: const isMatch = await bcrypt.compare(otp, otpDoc.otp);
+- Compares plain text OTP with hashed OTP in database
+- otp: Plain text from user (e.g., "123456")
+- otpDoc.otp: Hashed OTP from database
+- bcrypt.compare() returns true if match, false if not
+
+LINE 40-42: if (!isMatch) { ... }
+- If OTP doesn't match, return error
+- User entered wrong OTP
+- Returns 400 Bad Request
+
+LINE 43: await OTP.deleteOne({ email });
+- Deletes OTP after successful verification
+- Prevents OTP reuse (one-time password!)
+- Cleans up database
+- Should delete by _id instead of email (more precise)
+
+LINE 44: res.status(200).json({ message: "OTP verified successfully" });
+- Returns success response
+- OTP is valid and verified!
+- Client can now proceed with registration/login
+
+
+LINE 47-51: signup Function
+--------
+exports.signup = async (req, res) => {
+    const { email, password } = req.body;
+    const user = await User.create({ email, password });
+    res.status(201).json({ message: "User created successfully" });
+}
+
+LINE 48: const { email, password } = req.body;
+- Gets email and password from request body
+- Client sends: { "email": "user@example.com", "password": "myPassword123" }
+
+LINE 49: const user = await User.create({ email, password });
+- Creates new user in database
+- Password will be auto-hashed by pre-save hook in user.model.js
+- User starts as unverified (isVerified: false by default)
+- Should check if user already exists first!
+
+LINE 50: res.status(201).json({ message: "User created successfully" });
+- Returns success response
+- Status 201: Created (resource created successfully)
+- Should return user data or JWT token
+
+
+COMPLETE REGISTRATION FLOW:
+---------------------------
+
+Step 1: User requests OTP
+POST /api/auth/send-otp
+Body: { "email": "user@example.com" }
+→ Generates OTP: "123456"
+→ Saves hashed OTP to database with expiration
+→ Sends email with OTP to user
+→ Response: { "message": "OTP sent successfully" }
+
+Step 2: User receives email
+Email: "Your OTP is 123456"
+User copies OTP: "123456"
+
+Step 3: User verifies OTP
+POST /api/auth/verify-otp
+Body: { "email": "user@example.com", "otp": "123456" }
+→ Finds OTP in database
+→ Checks if expired
+→ Compares OTP with bcrypt
+→ Deletes OTP if valid
+→ Response: { "message": "OTP verified successfully" }
+
+Step 4: User signs up
+POST /api/auth/signup
+Body: { "email": "user@example.com", "password": "myPassword123" }
+→ Creates user with hashed password
+→ User saved as unverified
+→ Response: { "message": "User created successfully" }
+
+Step 5: (Optional) Update user as verified
+→ After OTP verification, update: isVerified = true
+
+
+IMPROVEMENTS NEEDED:
+-------------------
+
+1. Error Handling (try-catch blocks):
+   try {
+       // ... code
+   } catch (error) {
+       res.status(500).json({ message: "Server error", error: error.message });
+   }
+
+2. Input Validation:
+   if (!email || !isValidEmail(email)) {
+       return res.status(400).json({ message: "Invalid email" });
+   }
+
+3. Check if user exists (in signup):
+   const existingUser = await User.findOne({ email });
+   if (existingUser) {
+       return res.status(400).json({ message: "User already exists" });
+   }
+
+4. Rate Limiting (prevent OTP spam):
+   const recentOTP = await OTP.findOne({ 
+       email, 
+       createdAt: { $gte: new Date(Date.now() - 60000) } 
+   });
+   if (recentOTP) {
+       return res.status(429).json({ message: "Please wait before requesting new OTP" });
+   }
+
+5. Delete expired OTP in verifyOTP:
+   if (otpDoc.expiresAt < Date.now()) {
+       await OTP.deleteOne({ _id: otpDoc._id });
+       return res.status(400).json({ message: "OTP expired" });
+   }
+
+6. Return JWT token after signup:
+   const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { 
+       expiresIn: process.env.JWT_EXPIRE 
+   });
+   res.status(201).json({ message: "User created", token });
+
+7. Update user as verified after OTP verification:
+   await User.updateOne({ email }, { isVerified: true });
+
+8. Use environment variable for OTP expiration:
+   const expirationTime = parseInt(process.env.OTP_EXPIRE_MINUTES) * 60 * 1000;
+   const expiresAt = new Date(Date.now() + expirationTime);
+
+
+SECURITY CONSIDERATIONS:
+------------------------
+
+✓ OTPs are hashed before storage (pre-save hook)
+✓ OTPs expire after 10 minutes
+✓ OTPs are deleted after verification (one-time use)
+✓ Passwords are hashed before storage (pre-save hook)
+
+✗ Missing: Rate limiting on OTP requests
+✗ Missing: Input validation
+✗ Missing: Error handling
+✗ Missing: Check for existing users
+✗ Missing: Attempt limiting on OTP verification
+
+
+TYPICAL API ROUTES:
+------------------
+
+POST /api/auth/send-otp      - Send OTP to email
+POST /api/auth/verify-otp    - Verify OTP code
+POST /api/auth/signup        - Create new user account
+POST /api/auth/login         - Login existing user (not implemented yet)
+
+
+NODEMAILER TRANSPORTER EXPLAINED:
+---------------------------------
+
+The transporter is like a "mail sender" configured once and reused:
+
+const transporter = nodemailer.createTransport({
+    service: "gmail",           // Use Gmail's SMTP server
+    auth: {
+        user: process.env.EMAIL_USER,    // Your Gmail address
+        pass: process.env.EMAIL_PASS,    // Your Gmail app password
+    },
+});
+
+Then use it to send emails:
+
+await transporter.sendMail({
+    from: "noreply@cms.com",
+    to: "user@example.com",
+    subject: "Your OTP Code",
+    text: "Your OTP is 123456",
+    html: "<h1>Your OTP is 123456</h1>"  // Optional HTML version
+});
+
+
+OTP GENERATOR OPTIONS:
+---------------------
+
+otpGenerator.generate(6, { digits: true });
+
+Options:
+- Length: 6 (6-digit OTP)
+- digits: true - Only numbers (0-9)
+- upperCaseAlphabets: false - No uppercase letters
+- lowerCaseAlphabets: false - No lowercase letters
+- specialChars: false - No special characters
+
+Result: "123456", "789012", "456789", etc.
+
+
+BCRYPT COMPARE EXPLAINED:
+-------------------------
+
+await bcrypt.compare(plainText, hashedText);
+
+- plainText: User input (e.g., "123456")
+- hashedText: Hashed value from database (e.g., "$2b$10$...")
+- Returns: true if match, false if not
+
+How it works:
+1. Takes plain text input
+2. Hashes it with the same salt as the stored hash
+3. Compares the two hashes
+4. Returns true if identical
+
+Why not just compare strings?
+- Hashes are one-way (can't reverse)
+- Same input + same salt = same hash
+- bcrypt.compare() handles the salt extraction automatically
+
+
+RESPONSE STATUS CODES USED:
+---------------------------
+
+200 OK - Success (OTP sent, OTP verified)
+201 Created - Resource created (User created)
+400 Bad Request - Invalid input (OTP not found, expired, invalid)
+500 Internal Server Error - Server error (should add error handling)
+
+
+================================================================================
+11. HOW TO RUN THE PROJECT
 ================================================================================
 
 Step 1: Install dependencies
