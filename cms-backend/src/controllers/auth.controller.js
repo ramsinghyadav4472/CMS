@@ -29,7 +29,7 @@ exports.sendOTP = async (req, res) => {
 
 exports.verifyOTP = async (req, res) => {
     const { email, otp } = req.body;
-    const otpDoc = await OTP.findOne({ email });
+    const otpDoc = await OTP.findOne({ email }).sort({ createdAt: -1 });
     if (!otpDoc) {
         return res.status(400).json({ message: "OTP not found" });
     }
@@ -42,4 +42,10 @@ exports.verifyOTP = async (req, res) => {
     }
     await OTP.deleteOne({ email });
     res.status(200).json({ message: "OTP verified successfully" });
-}   
+};
+
+exports.signup = async (req, res) => {
+    const { email, password } = req.body;
+    const user = await User.create({ email, password });
+    res.status(201).json({ message: "User created successfully" });
+}
