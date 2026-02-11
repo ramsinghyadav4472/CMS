@@ -10,4 +10,35 @@ const artifactSchema = new mongoose.Schema({
     { timestamps: true },
 );
 
-module.exports = mongoose.model("Artifact", artifactSchema);  
+const likeSchema = new mongoose.Schema({
+    artifactId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Artifact"
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+    }
+},
+    { timestamps: true },
+);
+
+const commentSchema = new mongoose.Schema({
+    artifactId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Artifact"
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+    },
+    comment: String
+},
+    { timestamps: true },
+);
+
+module.exports = {
+    Artifact: mongoose.model("Artifact", artifactSchema),
+    Like: mongoose.model("Like", likeSchema),
+    Comment: mongoose.model("Comment", commentSchema)
+};

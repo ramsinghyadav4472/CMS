@@ -15,4 +15,6 @@ app.get("/", (req, res) => {
 app.use("/api/auth", require("./routes/auth.routes"));
 app.use("/api/artifacts", require("./routes/artifact.routes"));
 
+
+
 module.exports = app;

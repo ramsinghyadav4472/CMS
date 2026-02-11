@@ -1,0 +1,329 @@
+===============================================
+CMS BACKEND - API TESTING ENDPOINTS
+===============================================
+Base URL: http://localhost:5000
+===============================================
+
+==============================================
+1. AUTHENTICATION ENDPOINTS
+==============================================
+
+-------------------
+1.1 SEND OTP
+-------------------
+Method: POST
+URL: http://localhost:5000/api/auth/send-otp
+Headers:
+  Content-Type: application/json
+Body (raw JSON):
+{
+  "email": "test@example.com"
+}
+
+Expected Response:
+{
+  "message": "OTP sent successfully"
+}
+
+-------------------
+1.2 VERIFY OTP
+-------------------
+Method: POST
+URL: http://localhost:5000/api/auth/verify-otp
+Headers:
+  Content-Type: application/json
+Body (raw JSON):
+{
+  "email": "test@example.com",
+  "otp": "123456"
+}
+
+Expected Response:
+{
+  "message": "OTP verified successfully"
+}
+
+-------------------
+1.3 SIGNUP
+-------------------
+Method: POST
+URL: http://localhost:5000/api/auth/signup
+Headers:
+  Content-Type: application/json
+Body (raw JSON):
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+Expected Response:
+{
+  "message": "User created successfully"
+}
+
+-------------------
+1.4 LOGIN
+-------------------
+Method: POST
+URL: http://localhost:5000/api/auth/login
+Headers:
+  Content-Type: application/json
+Body (raw JSON):
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+Expected Response:
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+
+⚠️ IMPORTANT: Copy this token! You'll need it for all artifact endpoints below.
+
+
+==============================================
+2. ARTIFACT ENDPOINTS (Require Authentication)
+==============================================
+
+-------------------
+2.1 CREATE ARTIFACT
+-------------------
+Method: POST
+URL: http://localhost:5000/api/artifacts/create
+Headers:
+  Content-Type: application/json
+  Authorization: Bearer YOUR_TOKEN_HERE
+Body (raw JSON):
+{
+  "title": "My First Artifact",
+  "description": "This is a test artifact"
+}
+
+Expected Response:
+{
+  "_id": "698af2c97ee651470fcd1b47",
+  "title": "My First Artifact",
+  "description": "This is a test artifact",
+  "createdBy": "698af2c97ee651470fcd1b46",
+  "createdAt": "2026-02-11T05:14:14.000Z",
+  "updatedAt": "2026-02-11T05:14:14.000Z"
+}
+
+⚠️ IMPORTANT: Copy the "_id" value! This is your artifact ID for testing.
+
+-------------------
+2.2 GET ALL ARTIFACTS
+-------------------
+Method: GET
+URL: http://localhost:5000/api/artifacts/
+Headers:
+  Authorization: Bearer YOUR_TOKEN_HERE
+Body: None
+
+Expected Response:
+[
+  {
+    "_id": "698af2c97ee651470fcd1b47",
+    "title": "My First Artifact",
+    "description": "This is a test artifact",
+    "createdBy": {
+      "_id": "698af2c97ee651470fcd1b46",
+      "email": "test@example.com"
+    },
+    "createdAt": "2026-02-11T05:14:14.000Z",
+    "updatedAt": "2026-02-11T05:14:14.000Z"
+  }
+]
+
+
+==============================================
+3. LIKE/UNLIKE ENDPOINTS
+==============================================
+
+-------------------
+3.1 LIKE ARTIFACT
+-------------------
+Method: POST
+URL: http://localhost:5000/api/artifacts/like/YOUR_ARTIFACT_ID
+Example: http://localhost:5000/api/artifacts/like/698af2c97ee651470fcd1b47
+Headers:
+  Authorization: Bearer YOUR_TOKEN_HERE
+Body: None
+
+Expected Response:
+{
+  "_id": "698af2c97ee651470fcd1b48",
+  "artifactId": "698af2c97ee651470fcd1b47",
+  "userId": "698af2c97ee651470fcd1b46",
+  "createdAt": "2026-02-11T05:15:00.000Z",
+  "updatedAt": "2026-02-11T05:15:00.000Z"
+}
+
+-------------------
+3.2 UNLIKE ARTIFACT
+-------------------
+Method: POST
+URL: http://localhost:5000/api/artifacts/unlike/YOUR_ARTIFACT_ID
+Example: http://localhost:5000/api/artifacts/unlike/698af2c97ee651470fcd1b47
+Headers:
+  Authorization: Bearer YOUR_TOKEN_HERE
+Body: None
+
+Expected Response:
+{
+  "acknowledged": true,
+  "deletedCount": 1
+}
+
+Note: deletedCount will be 0 if there's no like to remove.
+
+
+==============================================
+4. COMMENT/UNCOMMENT ENDPOINTS
+==============================================
+
+-------------------
+4.1 ADD COMMENT
+-------------------
+Method: POST
+URL: http://localhost:5000/api/artifacts/comment/YOUR_ARTIFACT_ID
+Example: http://localhost:5000/api/artifacts/comment/698af2c97ee651470fcd1b47
+Headers:
+  Content-Type: application/json
+  Authorization: Bearer YOUR_TOKEN_HERE
+Body (raw JSON):
+{
+  "comment": "This is my test comment!"
+}
+
+Expected Response:
+{
+  "_id": "698af2c97ee651470fcd1b49",
+  "artifactId": "698af2c97ee651470fcd1b47",
+  "userId": "698af2c97ee651470fcd1b46",
+  "comment": "This is my test comment!",
+  "createdAt": "2026-02-11T05:16:00.000Z",
+  "updatedAt": "2026-02-11T05:16:00.000Z"
+}
+
+-------------------
+4.2 REMOVE COMMENT
+-------------------
+Method: POST
+URL: http://localhost:5000/api/artifacts/uncomment/YOUR_ARTIFACT_ID
+Example: http://localhost:5000/api/artifacts/uncomment/698af2c97ee651470fcd1b47
+Headers:
+  Authorization: Bearer YOUR_TOKEN_HERE
+Body: None
+
+Expected Response:
+{
+  "acknowledged": true,
+  "deletedCount": 1
+}
+
+Note: deletedCount will be 0 if there's no comment to remove.
+
+
+==============================================
+5. COMPLETE TESTING WORKFLOW
+==============================================
+
+STEP 1: Authentication Flow
+  1. Send OTP → POST /api/auth/send-otp
+  2. Check email for OTP code
+  3. Verify OTP → POST /api/auth/verify-otp
+  4. Signup → POST /api/auth/signup
+  5. Login → POST /api/auth/login
+  6. Copy the token from response
+
+STEP 2: Create Test Data
+  7. Create Artifact → POST /api/artifacts/create
+  8. Copy the artifact _id from response
+  9. Get All Artifacts → GET /api/artifacts/
+
+STEP 3: Test Like Feature
+  10. Like Artifact → POST /api/artifacts/like/:id
+  11. Like Again → Should create another like
+  12. Unlike Artifact → POST /api/artifacts/unlike/:id
+  13. Unlike Again → deletedCount should be 1 or 0
+
+STEP 4: Test Comment Feature
+  14. Add Comment → POST /api/artifacts/comment/:id
+  15. Add Another Comment → Should create another comment
+  16. Remove Comment → POST /api/artifacts/uncomment/:id
+  17. Remove Again → deletedCount should be 1 or 0
+
+
+==============================================
+6. COMMON ERRORS & SOLUTIONS
+==============================================
+
+Error: "jwt must be provided"
+Solution: Add Authorization header with Bearer token
+
+Error: "jwt malformed"
+Solution: Make sure format is "Bearer YOUR_TOKEN" (with space)
+
+Error: "Cast to ObjectId failed"
+Solution: Use correct artifact ID (24-character hex string)
+
+Error: "User not found"
+Solution: Make sure you've signed up first
+
+Error: "Invalid password"
+Solution: Check your password is correct
+
+Error: "OTP expired"
+Solution: Request new OTP (valid for 10 minutes only)
+
+
+==============================================
+7. QUICK REFERENCE
+==============================================
+
+Authentication Endpoints:
+  POST /api/auth/send-otp      → Send OTP to email
+  POST /api/auth/verify-otp    → Verify OTP code
+  POST /api/auth/signup        → Create new user
+  POST /api/auth/login         → Login and get token
+
+Artifact Endpoints (Need Token):
+  POST /api/artifacts/create   → Create artifact
+  GET  /api/artifacts/         → Get all artifacts
+
+Like Endpoints (Need Token):
+  POST /api/artifacts/like/:id    → Like artifact
+  POST /api/artifacts/unlike/:id  → Unlike artifact
+
+Comment Endpoints (Need Token):
+  POST /api/artifacts/comment/:id    → Add comment
+  POST /api/artifacts/uncomment/:id  → Remove comment
+
+
+==============================================
+8. POSTMAN TIPS
+==============================================
+
+1. Save your token as environment variable:
+   - Create environment "CMS Backend"
+   - Add variable: token = YOUR_TOKEN
+   - Use in headers: Authorization: Bearer {{token}}
+
+2. Save artifact ID as variable:
+   - Add variable: artifact_id = YOUR_ARTIFACT_ID
+   - Use in URL: /api/artifacts/like/{{artifact_id}}
+
+3. Auto-save token after login:
+   - In Login request, go to "Tests" tab
+   - Add: pm.environment.set("token", pm.response.json().token);
+
+4. Auto-save artifact ID:
+   - In Create Artifact request, go to "Tests" tab
+   - Add: pm.environment.set("artifact_id", pm.response.json()._id);
+
+
+==============================================
+END OF API TESTING GUIDE
+==============================================
